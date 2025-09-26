@@ -1,0 +1,6 @@
+import React from "react";
+import WazuhSocDashboard from "./WazuhSocDashboard";
+
+export default function App() {
+  return <WazuhSocDashboard />;
+}

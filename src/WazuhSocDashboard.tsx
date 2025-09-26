@@ -1,0 +1,775 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LineChart,
+  Line,
+} from "recharts";
+
+// ---- Types matching FastAPI responses ----
+type BucketRow = { risk_bucket: "Critical" | "High" | "Medium" | "Low" | string; n: number };
+type ScoreStats = { total: number; avg_score: number; min_score: number; max_score: number };
+type AlertRow = {
+  id: string;
+  rule_level: number;
+  rule_description: string;
+  source_ip: string | null;
+  destination_ip: string | null;
+  timestamp: string;
+  risk_score: number;
+  risk_bucket: "Critical" | "High" | "Medium" | "Low" | string;
+};
+type CaseRow = {
+  minute: string;
+  rule_description: string;
+  source_ip: string | null;
+  destination_ip: string | null;
+  n: number;
+  max_score: number;
+  bucket: string;
+  last_seen: string;
+};
+type TopSourceRow = { source_ip: string; count: number };
+type TrendRow = { time_bucket: string; avg_score: number; max_score: number; count: number };
+
+// precision/recall endpoint type
+type PRMetrics = {
+  n: number;
+  thr: number;
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+  tp: number;
+  fp: number;
+  fn: number;
+  used_fallback: boolean;
+  from_ts?: string | null;
+  to_ts?: string | null;
+  since?: string | null;
+  until?: string | null;
+};
+
+// ---- Small helpers ----
+const ENV_API = (import.meta as any).env?.VITE_API_BASE;
+const DEFAULT_API = ENV_API || `${window.location.protocol}//${window.location.hostname}:8080`;
+
+function ScoreBar({ p }: { p: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round((Number(p) || 0) * 100)));
+  return (
+    <div title={(Number(p) || 0).toFixed(3)} style={{ width: 112, background: "#e4e4e7", borderRadius: 9999, height: 10, overflow: "hidden" }}>
+      <div style={{ width: `${pct}%`, height: 10, borderRadius: 9999, background: "linear-gradient(90deg,#60a5fa,#ef4444)" }} />
+    </div>
+  );
+}
+
+const BUCKET_ORDER = ["Critical", "High", "Medium", "Low"];
+const BUCKET_COLORS: Record<string, string> = {
+  Critical: "#ef4444",
+  High: "#f59e0b",
+  Medium: "#10b981",
+  Low: "#64748b",
+};
+
+async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const r = await fetch(url, { signal });
+  if (!r.ok) {
+    let detail = r.statusText;
+    try {
+      const j = await r.json();
+      detail = (j && (j.detail || JSON.stringify(j))) || detail;
+    } catch {}
+    throw new Error(`${r.status} ${detail}`);
+  }
+  return (await r.json()) as T;
+}
+
+// Debounce hook for search
+function useDebounced<T>(value: T, ms: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
+// Default ISO strings: last 1 hour window
+function defaultSince(): string {
+  return new Date(Date.now() - 60 * 60 * 1000).toISOString().slice(0, 19);
+}
+function defaultUntil(): string {
+  return new Date().toISOString().slice(0, 19);
+}
+
+type ModelView = "if" | "rf" | "brf" | "both";
+
+export default function WazuhSocDashboard() {
+  const [apiBase, setApiBase] = useState<string>(() => ENV_API || localStorage.getItem("apiBase") || DEFAULT_API);
+  useEffect(() => {
+    localStorage.setItem("apiBase", apiBase);
+  }, [apiBase]);
+
+  // ---- Model toggle ----
+  const [modelView, setModelView] = useState<ModelView>("both");
+
+  // ---- Filters ----
+  const [bucket, setBucket] = useState<string>("");
+  const [minScore, setMinScore] = useState<number>(0.0);
+  const [limit, setLimit] = useState<number>(50);
+  const [page, setPage] = useState<number>(0);
+  const [q, setQ] = useState<string>("");
+  const debouncedQ = useDebounced(q, 350);
+  const [since, setSince] = useState<string>(defaultSince());
+  const [until, setUntil] = useState<string>(defaultUntil());
+  const [auto, setAuto] = useState<number>(0);
+
+  // threshold only for metrics tiles
+  const [thr, setThr] = useState<number>(0.32);
+
+  // ---- Data state (single-model) ----
+  const [buckets, setBuckets] = useState<BucketRow[]>([]);
+  const [stats, setStats] = useState<ScoreStats | null>(null);
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [topSources, setTopSources] = useState<TopSourceRow[]>([]);
+  const [trend, setTrend] = useState<TrendRow[]>([]);
+  const [pr, setPr] = useState<PRMetrics | null>(null);
+  const [surfacedCount, setSurfacedCount] = useState<number | null>(null);
+
+  // ---- Data state (both-models) ----
+  const [bucketsRF, setBucketsRF] = useState<BucketRow[]>([]);
+  const [bucketsBRF, setBucketsBRF] = useState<BucketRow[]>([]);
+  const [statsRF, setStatsRF] = useState<ScoreStats | null>(null);
+  const [statsBRF, setStatsBRF] = useState<ScoreStats | null>(null);
+  const [alertsRF, setAlertsRF] = useState<AlertRow[]>([]);
+  const [alertsBRF, setAlertsBRF] = useState<AlertRow[]>([]);
+  const [trendRF, setTrendRF] = useState<TrendRow[]>([]);
+  const [trendBRF, setTrendBRF] = useState<TrendRow[]>([]);
+  const [prRF, setPrRF] = useState<PRMetrics | null>(null);
+  const [prBRF, setPrBRF] = useState<PRMetrics | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string>("");
+
+  // ---- Loaders ----
+  const queryCommon = (extra: Record<string, string | number | boolean | undefined> = {}) => {
+    const p = new URLSearchParams({
+      ...(bucket ? { bucket } : {}),
+      ...(minScore ? { min_score: String(minScore) } : {}),
+      ...(debouncedQ ? { q: debouncedQ } : {}),
+      ...(since ? { since } : {}),
+      ...(until ? { until } : {}),
+      ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== undefined)),
+    } as any);
+    return p.toString();
+  };
+
+  const loadSingleModel = async (model: "if" | "rf" | "brf", signal?: AbortSignal) => {
+    const [buckRaw, stRaw, alRaw, csRaw, topsRaw, trRaw, prRaw, cntRaw] = await Promise.all([
+      fetchJSON<any[]>(`${apiBase}/alerts/buckets?model=${model}`, signal).catch(() => []),
+      fetchJSON<any>(`${apiBase}/alerts/score-stats?model=${model}`, signal).catch(() => null),
+      fetchJSON<any[]>(`${apiBase}/alerts/scored?model=${model}&${queryCommon({ limit, offset: page * limit })}`, signal).catch(() => []),
+      fetchJSON<any[]>(`${apiBase}/cases?model=${model}&${queryCommon({ min_score: minScore || 0, limit: 100 })}`, signal).catch(() => []),
+      fetchJSON<any[]>(`${apiBase}/alerts/top-sources?model=${model}&${queryCommon({ limit: 10 })}`, signal).catch(() => []),
+      fetchJSON<any[]>(`${apiBase}/alerts/score-trend?model=${model}&${queryCommon({ interval: "hour", limit: 200 })}`, signal).catch(() => []),
+      fetchJSON<PRMetrics>(`${apiBase}/metrics/precision-recall?model=${model}&${new URLSearchParams({ thr: String(thr), ...(since ? { since } : {}), ...(until ? { until } : {}) }).toString()}`, signal).catch(() => null),
+      fetchJSON<{ n: number }>(`${apiBase}/alerts/count?model=${model}&${new URLSearchParams({ scored_only: "true", min_score: String(thr), ...(since ? { since } : {}), ...(until ? { until } : {}) }).toString()}`, signal).catch(() => ({ n: 0 })),
+    ]);
+
+    const buck = Array.isArray(buckRaw)
+      ? buckRaw
+          .map((b) => ({ risk_bucket: String(b.risk_bucket ?? ""), n: Number(b.n ?? 0) || 0 }))
+          .filter((b) => !!b.risk_bucket)
+      : [];
+    buck.sort((a, b) => BUCKET_ORDER.indexOf(a.risk_bucket) - BUCKET_ORDER.indexOf(b.risk_bucket));
+
+    const st = stRaw
+      ? {
+          total: Number(stRaw.total ?? 0) || 0,
+          avg_score: Number(stRaw.avg_score ?? 0) || 0,
+          min_score: Number(stRaw.min_score ?? 0) || 0,
+          max_score: Number(stRaw.max_score ?? 0) || 0,
+        }
+      : null;
+
+    const tops = Array.isArray(topsRaw)
+      ? topsRaw.map((r) => ({ source_ip: String(r.source_ip ?? "(null)"), count: Number(r.n ?? r.count ?? 0) || 0 }))
+      : [];
+
+    const tr = Array.isArray(trRaw)
+      ? trRaw.map((t) => ({
+          time_bucket: String(t.time_bucket ?? ""),
+          avg_score: Number(t.avg_score ?? 0) || 0,
+          max_score: Number(t.max_score ?? 0) || 0,
+          count: Number(t.count ?? 0) || 0,
+        }))
+      : [];
+
+    return {
+      buckets: buck,
+      stats: st,
+      alerts: Array.isArray(alRaw) ? alRaw : [],
+      cases: Array.isArray(csRaw) ? csRaw : [],
+      topSources: tops,
+      trend: tr,
+      pr: prRaw,
+      surfacedCount: cntRaw?.n ?? null,
+    };
+  };
+
+  const loadAll = async (signal?: AbortSignal) => {
+    setErr("");
+    setLoading(true);
+    try {
+      if (modelView === "both") {
+        const [rf, brf] = await Promise.all([loadSingleModel("rf", signal), loadSingleModel("brf", signal)]);
+        // RF
+        setBucketsRF(rf.buckets);
+        setStatsRF(rf.stats);
+        setAlertsRF(rf.alerts);
+        setTrendRF(rf.trend);
+        setPrRF(rf.pr);
+        // BRF
+        setBucketsBRF(brf.buckets);
+        setStatsBRF(brf.stats);
+        setAlertsBRF(brf.alerts);
+        setTrendBRF(brf.trend);
+        setPrBRF(brf.pr);
+        // Single-model panels use BRF as “active” default to avoid blanks
+        setBuckets(brf.buckets);
+        setStats(brf.stats);
+        setAlerts(brf.alerts);
+        setTrend(brf.trend);
+        setPr(brf.pr);
+        setSurfacedCount(brf.surfacedCount);
+        setCases([]);      // optional: hide cases in both mode
+        setTopSources([]); // optional: hide top sources in both mode
+      } else {
+        const data = await loadSingleModel(modelView, signal);
+        setBuckets(data.buckets);
+        setStats(data.stats);
+        setAlerts(data.alerts);
+        setCases(data.cases);
+        setTopSources(data.topSources);
+        setTrend(data.trend);
+        setPr(data.pr);
+        setSurfacedCount(data.surfacedCount);
+        // clear dual-model panels
+        setBucketsRF([]); setBucketsBRF([]);
+        setStatsRF(null); setStatsBRF(null);
+        setAlertsRF([]); setAlertsBRF([]);
+        setTrendRF([]); setTrendBRF([]);
+        setPrRF(null); setPrBRF(null);
+      }
+    } catch (e: any) {
+      if (e?.name !== "AbortError") setErr(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const ctl = new AbortController();
+    loadAll(ctl.signal);
+    return () => ctl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, modelView, bucket, minScore, limit, page, debouncedQ, since, until, thr]);
+
+  useEffect(() => {
+    if (!auto) return;
+    const t = setInterval(() => loadAll(), auto * 1000);
+    return () => clearInterval(t);
+  }, [auto, apiBase, modelView, bucket, minScore, limit, page, debouncedQ, since, until, thr]);
+
+  const bucketTotal = useMemo(() => buckets.reduce((a, b) => a + (b.n || 0), 0), [buckets]);
+  const trendChrono: TrendRow[] = useMemo(() => [...trend].reverse(), [trend]);
+  const trendRFChrono: TrendRow[] = useMemo(() => [...trendRF].reverse(), [trendRF]);
+  const trendBRFChrono: TrendRow[] = useMemo(() => [...trendBRF].reverse(), [trendBRF]);
+
+  const fmt3 = (x?: number | null) => (typeof x === "number" ? x.toFixed(3) : "—");
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#fafafa", color: "#09090b" }}>
+      {/* Header */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
+          background: "rgba(255,255,255,0.8)",
+          backdropFilter: "blur(6px)",
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1120,
+            margin: "0 auto",
+            padding: "12px 16px",
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 18, fontWeight: 600 }}>Wazuh SOC Dashboard</span>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>• SQLite + FastAPI + React</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {/* Model switcher */}
+            <select
+              value={modelView}
+              onChange={(e) => { setPage(0); setModelView(e.target.value as ModelView); }}
+              title="Choose which model to display"
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8", background: "#fff" }}
+            >
+              <option value="if">Published (IF)</option>
+              <option value="rf">Random Forest (RF)</option>
+              <option value="brf">Balanced RF (BRF)</option>
+              <option value="both">Both (RF & BRF)</option>
+            </select>
+
+            <label style={{ fontSize: 12, color: "#52525b" }}>API base</label>
+            <input
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8", background: "#fff", width: 320, outline: "none" }}
+              value={apiBase}
+              onChange={(e) => setApiBase(e.target.value.trim())}
+              placeholder="http://SERVER:8080"
+            />
+            <button onClick={() => loadAll()} style={{ padding: "6px 10px", borderRadius: 8, background: "#18181b", color: "#fff" }} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "24px 16px", display: "grid", gap: 16 }}>
+        {err && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: 12, borderRadius: 12 }}>
+            <div style={{ fontWeight: 600 }}>Error</div>
+            <div style={{ fontSize: 13 }}>{err}</div>
+          </div>
+        )}
+
+        {/* Top metrics / filters */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {modelView === "both" ? "Total (RF / BRF)" : "Total Scored Alerts"}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 600 }}>
+              {modelView === "both"
+                ? `${statsRF?.total?.toLocaleString?.() ?? "—"} / ${statsBRF?.total?.toLocaleString?.() ?? "—"}`
+                : stats?.total?.toLocaleString() ?? "—"}
+            </div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+              {modelView === "both"
+                ? "Comparing RF and BRF"
+                : `Buckets shown: ${bucketTotal.toLocaleString()}`}
+            </div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {modelView === "both" ? "Avg/Min/Max (RF) vs (BRF)" : "Avg / Min / Max Score"}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 600 }}>
+              {modelView === "both"
+                ? `${statsRF ? `${statsRF.avg_score.toFixed(3)} / ${statsRF.min_score.toFixed(3)} / ${statsRF.max_score.toFixed(3)}` : "—"}  vs  ${
+                    statsBRF ? `${statsBRF.avg_score.toFixed(3)} / ${statsBRF.min_score.toFixed(3)} / ${statsBRF.max_score.toFixed(3)}` : "—"
+                  }`
+                : stats
+                ? `${Number(stats.avg_score).toFixed(3)} / ${Number(stats.min_score).toFixed(3)} / ${Number(stats.max_score).toFixed(3)}`
+                : "—"}
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Filters</div>
+            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <select
+                value={bucket}
+                onChange={(e) => { setPage(0); setBucket(e.target.value); }}
+                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8", background: "#fff" }}
+              >
+                <option value="">All buckets</option>
+                {BUCKET_ORDER.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 12, color: "#52525b" }}>Min score</label>
+                <input
+                  type="number" min={0} max={1} step={0.01} value={minScore}
+                  onChange={(e) => { setPage(0); setMinScore(Number(e.target.value)); }}
+                  style={{ width: 96, padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 12, color: "#52525b" }}>Limit</label>
+                <select
+                  value={limit}
+                  onChange={(e) => { setPage(0); setLimit(Number(e.target.value)); }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8", background: "#fff" }}
+                >
+                  {[50, 100, 200, 500, 1000].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+
+              <input
+                placeholder="Search description/IP…"
+                value={q}
+                onChange={(e) => { setPage(0); setQ(e.target.value); }}
+                style={{ minWidth: 200, flex: 1, padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8" }}
+              />
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 12, color: "#52525b" }}>Since (UTC)</label>
+                <input
+                  type="text" value={since}
+                  onChange={(e) => { setPage(0); setSince(e.target.value); }}
+                  placeholder="YYYY-MM-DDTHH:MM:SS"
+                  style={{ width: 180, padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 12, color: "#52525b" }}>Until (UTC)</label>
+                <input
+                  type="text" value={until}
+                  onChange={(e) => { setPage(0); setUntil(e.target.value); }}
+                  placeholder="YYYY-MM-DDTHH:MM:SS"
+                  style={{ width: 180, padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 12, color: "#52525b" }}>Auto-refresh</label>
+                <select
+                  value={auto}
+                  onChange={(e) => setAuto(Number(e.target.value))}
+                  title="Refresh interval"
+                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8", background: "#fff" }}
+                >
+                  <option value={0}>Off</option>
+                  <option value={10}>10s</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+              </div>
+
+              <button onClick={() => { setPage(0); loadAll(); }} style={{ padding: "6px 10px", borderRadius: 8, background: "#18181b", color: "#fff" }} disabled={loading}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Model quality tiles */}
+        <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {modelView === "both" ? "Model quality (RF & BRF) — labeled rows in time window" : "Model quality (labeled rows in time window)"}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label style={{ fontSize: 12, color: "#52525b" }}>Threshold (thr)</label>
+              <input
+                type="number" min={0} max={1} step={0.01} value={thr}
+                onChange={(e) => setThr(Number(e.target.value))}
+                style={{ width: 96, padding: "6px 10px", borderRadius: 8, border: "1px solid #d4d4d8" }}
+              />
+              <span style={{ fontSize: 12, color: "#6b7280" }}>
+                window: {since?.slice(5, 16) || "—"} → {until?.slice(5, 16) || "—"} UTC
+              </span>
+            </div>
+          </div>
+
+          {modelView !== "both" ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 12 }}>
+                <Tile label="N (labeled)" value={pr?.n?.toLocaleString?.() ?? "—"} sub={pr?.used_fallback ? "fallback last K rows" : "time-filtered"} />
+                <Tile label="TP" value={pr?.tp ?? "—"} />
+                <Tile label="FP" value={pr?.fp ?? "—"} />
+                <Tile label="FN" value={pr?.fn ?? "—"} />
+                <Tile label="Precision" value={fmt3(pr?.precision)} />
+                <Tile label="Recall" value={fmt3(pr?.recall)} />
+              </div>
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
+                <Tile label="F1" value={fmt3(pr?.f1)} />
+                <Tile label="Surfaced at thr" value={surfacedCount?.toLocaleString?.() ?? "—"} sub={`alerts with score ≥ ${thr}`} />
+                <Tile label="Scored span" value={
+                  <span style={{ fontSize: 12 }}>
+                    <span style={{ color: "#334155" }}>{(pr?.from_ts || "—").replace("+0000", "Z")}</span>
+                    <span style={{ color: "#94a3b8" }}> → </span>
+                    <span style={{ color: "#334155" }}>{(pr?.to_ts || "—").replace("+0000", "Z")}</span>
+                  </span>
+                }/>
+              </div>
+            </>
+          ) : (
+            <>
+              <ModelMetrics label="RF" metrics={prRF} thr={thr} />
+              <ModelMetrics label="BRF" metrics={prBRF} thr={thr} />
+            </>
+          )}
+        </div>
+
+        {/* Buckets + Top sources */}
+        {modelView !== "both" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <BucketCard title="Bucket distribution" buckets={buckets} />
+            <TopSourcesCard topSources={topSources} />
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <BucketCard title="RF — Bucket distribution" buckets={bucketsRF} />
+            <BucketCard title="BRF — Bucket distribution" buckets={bucketsBRF} />
+          </div>
+        )}
+
+        {/* Trend chart */}
+        <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+            {modelView === "both" ? "Alert score trend (overlay: RF vs BRF)" : "Alert score trend (time series)"}
+          </div>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              {modelView === "both" ? (
+                <LineChart data={mergeTrend(trendRFChrono, trendBRFChrono)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time_bucket" tickFormatter={(t: string) => t.replace("T", " ").slice(5)} minTickGap={20} />
+                  <YAxis domain={[0, 1]} allowDecimals tickCount={6} />
+                  <Tooltip
+                    formatter={(v: any, name: string) => (name.includes("count") ? v : typeof v === "number" ? v.toFixed(3) : v)}
+                    labelFormatter={(l) => `UTC ${l.replace("T", " ")}`}
+                  />
+                  <Line type="monotone" dataKey="avg_rf" name="Avg RF" dot={false} />
+                  <Line type="monotone" dataKey="avg_brf" name="Avg BRF" dot={false} />
+                </LineChart>
+              ) : (
+                <LineChart data={trendChrono}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time_bucket" tickFormatter={(t: string) => t.replace("T", " ").slice(5)} minTickGap={20} />
+                  <YAxis domain={[0, 1]} allowDecimals tickCount={6} />
+                  <Tooltip
+                    formatter={(v: any, name: string) => (name === "count" ? v : typeof v === "number" ? v.toFixed(3) : v)}
+                    labelFormatter={(l) => `UTC ${l.replace("T", " ")}`}
+                  />
+                  <Line type="monotone" dataKey="avg_score" dot={false} />
+                  <Line type="monotone" dataKey="max_score" dot={false} />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+          {modelView !== "both" && (trendChrono ?? []).length === 0 && !loading && (
+            <div style={{ textAlign: "center", color: "#6b7280", padding: "24px 0" }}>No trend data for current filter.</div>
+          )}
+        </div>
+
+        {/* Alerts tables */}
+        {modelView !== "both" ? (
+          <AlertsTableCard title="Alerts (sorted by score desc)" alerts={alerts} page={page} setPage={setPage} loading={loading} />
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <AlertsTableCard title="RF — Alerts" alerts={alertsRF} page={page} setPage={setPage} loading={loading} />
+            <AlertsTableCard title="BRF — Alerts" alerts={alertsBRF} page={page} setPage={setPage} loading={loading} />
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: "#6b7280", textAlign: "center", padding: "24px 0" }}>
+          Data source: <code>{apiBase}</code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------- Small components & helpers ---------------------- */
+
+function Tile({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div style={{ background: "#f8fafc", borderRadius: 12, padding: 12 }}>
+      <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 600 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "#94a3b8" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ModelMetrics({ label, metrics, thr }: { label: string; metrics: PRMetrics | null; thr: number }) {
+  const fmt3 = (x?: number | null) => (typeof x === "number" ? x.toFixed(3) : "—");
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>{label}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 12 }}>
+        <Tile label="N (labeled)" value={metrics?.n?.toLocaleString?.() ?? "—"} sub={metrics?.used_fallback ? "fallback last K rows" : "time-filtered"} />
+        <Tile label="TP" value={metrics?.tp ?? "—"} />
+        <Tile label="FP" value={metrics?.fp ?? "—"} />
+        <Tile label="FN" value={metrics?.fn ?? "—"} />
+        <Tile label="Precision" value={fmt3(metrics?.precision)} />
+        <Tile label="Recall" value={fmt3(metrics?.recall)} />
+      </div>
+      <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
+        <Tile label="F1" value={fmt3(metrics?.f1)} />
+        <Tile label="Threshold" value={thr.toFixed(2)} sub="used for metrics only" />
+        <Tile
+          label="Scored span"
+          value={
+            <span style={{ fontSize: 12 }}>
+              <span style={{ color: "#334155" }}>{(metrics?.from_ts || "—").replace("+0000", "Z")}</span>
+              <span style={{ color: "#94a3b8" }}> → </span>
+              <span style={{ color: "#334155" }}>{(metrics?.to_ts || "—").replace("+0000", "Z")}</span>
+            </span>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function BucketCard({ title, buckets }: { title: string; buckets: BucketRow[] }) {
+  const total = buckets.reduce((a, b) => a + (b.n || 0), 0);
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>{title}</div>
+      <div style={{ height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={buckets ?? []} dataKey="n" nameKey="risk_bucket" innerRadius="50%" outerRadius="80%" paddingAngle={1}>
+              {(buckets ?? []).map((entry, idx) => (
+                <Cell key={idx} fill={BUCKET_COLORS[entry.risk_bucket] || "#94a3b8"} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v: any) => (typeof v === "number" ? v.toLocaleString() : v)} labelFormatter={(l) => String(l)} contentStyle={{ borderRadius: 12 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, fontSize: 14 }}>
+        {(buckets ?? []).map((b) => (
+          <div key={b.risk_bucket} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 9999, backgroundColor: BUCKET_COLORS[b.risk_bucket] || "#94a3b8" }} />
+            <span style={{ width: 80 }}>{b.risk_bucket}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{b.n.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>Total: {total.toLocaleString()}</div>
+    </div>
+  );
+}
+
+function TopSourcesCard({ topSources }: { topSources: TopSourceRow[] }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>Top sources by count (current filter)</div>
+      <div style={{ height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={topSources ?? []}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="source_ip" interval={0} height={60} angle={-25} textAnchor="end" />
+            <YAxis allowDecimals={false} />
+            <Tooltip />
+            <Bar dataKey="count" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function AlertsTableCard({
+  title,
+  alerts,
+  page,
+  setPage,
+  loading,
+}: {
+  title: string;
+  alerts: AlertRow[];
+  page: number;
+  setPage: (f: (p: number) => number) => void;
+  loading: boolean;
+}) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 1px 2px rgba(0,0,0,0.06)", padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>{title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} style={{ padding: "4px 8px", border: "1px solid #d4d4d8", borderRadius: 8 }}>
+            Prev
+          </button>
+          <span style={{ fontSize: 12, color: "#52525b" }}>Page {page + 1}</span>
+          <button onClick={() => setPage((p) => p + 1)} style={{ padding: "4px 8px", border: "1px solid #d4d4d8", borderRadius: 8 }}>
+            Next
+          </button>
+        </div>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ minWidth: "100%", fontSize: 14 }}>
+          <thead style={{ background: "#f4f4f5", color: "#475569" }}>
+            <tr>
+              <th style={{ padding: 8, textAlign: "left" }}>Score</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Bucket</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Lvl</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Rule</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Src</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Dst</th>
+              <th style={{ padding: 8, textAlign: "left" }}>Time (UTC)</th>
+              <th style={{ padding: 8, textAlign: "left" }}>ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(alerts ?? []).map((a) => (
+              <tr key={a.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                <td style={{ padding: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <ScoreBar p={a.risk_score} />
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{Number(a.risk_score || 0).toFixed(3)}</span>
+                  </div>
+                </td>
+                <td style={{ padding: 8 }}>
+                  <span>{a.risk_bucket}</span>
+                </td>
+                <td style={{ padding: 8, fontVariantNumeric: "tabular-nums" }}>{a.rule_level}</td>
+                <td style={{ padding: 8 }}>{a.rule_description}</td>
+                <td style={{ padding: 8 }}>{a.source_ip || ""}</td>
+                <td style={{ padding: 8 }}>{a.destination_ip || ""}</td>
+                <td style={{ padding: 8, whiteSpace: "nowrap" }}>{(a.timestamp || "").replace("+0000", "Z")}</td>
+                <td style={{ padding: 8, color: "#6b7280" }}>{a.id}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(alerts ?? []).length === 0 && !loading && (
+          <div style={{ textAlign: "center", color: "#6b7280", padding: "40px 0" }}>No rows for current filter.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function mergeTrend(rf: TrendRow[], brf: TrendRow[]) {
+  // left join by time_bucket to make a combined array for overlay
+  const index = new Map<string, any>();
+  for (const r of rf) index.set(r.time_bucket, { time_bucket: r.time_bucket, avg_rf: r.avg_score, count_rf: r.count });
+  for (const b of brf) {
+    const row = index.get(b.time_bucket) || { time_bucket: b.time_bucket };
+    row.avg_brf = b.avg_score;
+    row.count_brf = b.count;
+    index.set(b.time_bucket, row);
+  }
+  return Array.from(index.values()).sort((a, b) => (a.time_bucket < b.time_bucket ? -1 : 1));
+}
