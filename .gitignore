@@ -1,0 +1,14 @@
+*.db
+*.db-*
+*.sqlite*
+*.csv
+*.pkl
+*.bak
+*.sql
+*.wal
+*.shm
+wazuh-logs/backup/
+wazuh-logs/backups/
+wazuh-logs/models/
+wazuh-logs/encoders/
+wazuh-logs/logs/

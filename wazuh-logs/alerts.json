@@ -1,0 +1,50 @@
+{
+  "alerts": [
+    {
+      "_version": "1",
+      "agent_ip": "10.0.0.5",
+      "agent_name": "agent1",
+      "agent_id": "001",
+      "manager_name": "manager1",
+      "srcip": "10.0.0.5",
+      "dstip": "10.0.0.1",
+      "data_id": "1234",
+      "rule_firedtimes": 3,
+      "rule_mail": "missing",
+      "rule_level": 10,
+      "rule_groups": "bruteforce",
+      "rule_id": "1001",
+      "location": "server-room-1",
+      "decoder_parent": "parent1",
+      "decoder_name": "decoder1",
+      "sort": 1,
+      "srcport": 22,
+      "dstport": 8080,
+      "proto": "tcp",
+      "batch_id": "batch123"
+    },
+    {
+      "_version": "1",
+      "agent_ip": "10.0.0.5",
+      "agent_name": "agent1",
+      "agent_id": "001",
+      "manager_name": "manager1",
+      "srcip": "10.0.0.5",
+      "dstip": "10.0.0.2",
+      "data_id": "1235",
+      "rule_firedtimes": 1,
+      "rule_mail": "missing",
+      "rule_level": 5,
+      "rule_groups": "bruteforce",
+      "rule_id": "1001",
+      "location": "server-room-1",
+      "decoder_parent": "parent1",
+      "decoder_name": "decoder1",
+      "sort": 1,
+      "srcport": 22,
+      "dstport": 8080,
+      "proto": "tcp",
+      "batch_id": "batch123"
+    }
+  ]
+}
