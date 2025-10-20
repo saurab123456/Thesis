@@ -35,9 +35,9 @@ soc-ml-pipeline/
 ├── dashboard/                 # (Optional) React frontend (if separated)
 └── config/                    # Wazuh/Suricata config, MITRE lookups, field maps
 
-Quick Start (ML)
-1️⃣ Install Requirements
-pip install -r soc-ml-pipeline/ml/requirements.txt
+## 📂 Install Requirements
+
+1️⃣ pip install -r soc-ml-pipeline/ml/requirements.txt
 
 2️⃣ Train Model
 python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py
