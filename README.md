@@ -1,74 +1,29 @@
-<<<<<<< HEAD
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-=======
 # Thesis
-Thesis
->>>>>>> af6a46b4cfa7a927ef8c6fb8c4d4baec998c61e9
+
+This repository contains the thesis frontend (React + Vite) and the SOC ML pipeline.
+
+## 📦 Structure
+- `soc-ml-pipeline/` — data processing, ML training/scoring, configs
+- `api/` — FastAPI backend (if used here)
+- `src/` — React dashboard (Vite/TS)
+
+## 📂 Appendix A: Repository Structure
+\`\`\`text
+soc-ml-pipeline/
+├── data/
+│   ├── sql/                   # Database schema & migrations
+│   └── processing/            # Ingestion & feature pipelines
+├── ml/
+│   ├── training/              # Model training & evaluation
+│   └── models/                # (Optional) Serialized models via Git LFS or Releases
+├── scripts/                   # Online scoring & publishing helpers
+├── api/                       # (Optional) FastAPI backend
+├── dashboard/                 # (Optional) React frontend (if separated)
+└── config/                    # Wazuh/Suricata config, MITRE lookups, field maps
+\`\`\`
+
+## 🚀 Quick start (ML)
+\`\`\`bash
+pip install -r soc-ml-pipeline/ml/requirements.txt
+python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py
+\`\`\`
