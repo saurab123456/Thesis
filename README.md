@@ -35,49 +35,10 @@ soc-ml-pipeline/
 ├── dashboard/                 # (Optional) React frontend (if separated)
 └── config/                    # Wazuh/Suricata config, MITRE lookups, field maps
 
-## 📂 Install Requirements
+---
 
-1️⃣ pip install -r soc-ml-pipeline/ml/requirements.txt
+## ⚡ Quick Start
 
-2️⃣ Train Model
-python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py
-
-🗄️ Create the SQLite Database (Schema Only)
-
-Requires sqlite3 installed.
-
-# From repo root
-./soc-ml-pipeline/data/sql/init_db.sh ./datasets/wazuh.db
-
-# or to create alerts.db
-./soc-ml-pipeline/data/sql/init_db.sh ./datasets/alerts.db
-
-🧠 Load Pretrained Models
-
-This repository includes pretrained Random Forest models for reproducibility.
-
-import joblib
-
-model = joblib.load("soc-ml-pipeline/ml/models/rf_model.pkl")
-features = joblib.load("soc-ml-pipeline/ml/models/feature_columns.pkl")
-print(f"Loaded model with {len(features)} features")
-
-📊 Key Features
-
-Integrated Data Sources: Wazuh, Suricata, and synthetic datasets
-
-Machine-Learning Pipeline: Random Forest & Balanced Random Forest with isotonic calibration
-
-Dynamic Personalisation: Analyst-specific dashboards and cognitive trust adaptation
-
-Visual Analytics: Real-time alert scoring, top 10 alert types, and severity distribution
-
-Scalable Deployment: FastAPI + React stack deployable via Docker or Kubernetes
-
-🧱 Tech Stack
-Layer	Technology
-Backend / API	FastAPI • SQLite • Python
-Frontend	React • TypeScript • Tailwind • Vite
-Machine Learning	scikit-learn • imbalanced-learn
-Security Engines	Wazuh • Suricata
-Deployment	Docker • Kubernetes (Ronin Cloud Cluster)
+### 1️⃣ Install Requirements
+```bash
+pip install -r soc-ml-pipeline/ml/requirements.txt
