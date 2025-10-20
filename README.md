@@ -41,3 +41,15 @@ Requires `sqlite3` installed.
 # or to create alerts.db
 ./soc-ml-pipeline/data/sql/init_db.sh ./datasets/alerts.db
 
+
+---
+
+### 🧠 Load Pretrained Models
+
+This repository includes pretrained Random Forest models for reproducibility.
+
+```python
+import joblib
+model = joblib.load("soc-ml-pipeline/ml/models/rf_model.pkl")
+features = joblib.load("soc-ml-pipeline/ml/models/feature_columns.pkl")
+print(f"Loaded model with {len(features)} features")
