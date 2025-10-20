@@ -27,3 +27,17 @@ soc-ml-pipeline/
 pip install -r soc-ml-pipeline/ml/requirements.txt
 python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py
 \`\`\`
+
+---
+
+### 🗄️ Create the SQLite database (schema only)
+
+Requires `sqlite3` installed.
+
+```bash
+# From repo root
+./soc-ml-pipeline/data/sql/init_db.sh ./datasets/wazuh.db
+
+# or to create alerts.db
+./soc-ml-pipeline/data/sql/init_db.sh ./datasets/alerts.db
+
