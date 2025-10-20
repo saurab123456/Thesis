@@ -1,0 +1,21 @@
+desc_key,technique_id,tactic,technique,subtechnique,mitre_url
+scan detection 2,T1046,discovery,Network Service Scanning,,https://attack.mitre.org/techniques/T1046/
+database alert 4,,,,,
+exfiltration alert 2,,,,,
+file_integrity event 2,,,,,
+web event 6,T1190,initial-access,Exploit Public-Facing Application,,https://attack.mitre.org/techniques/T1190/
+scan detection 3,T1046,discovery,Network Service Scanning,,https://attack.mitre.org/techniques/T1046/
+web event 2,T1190,initial-access,Exploit Public-Facing Application,,https://attack.mitre.org/techniques/T1190/
+authentication event 1,T1110,credential-access,Brute Force,,https://attack.mitre.org/techniques/T1110/
+authentication event 4,T1110,credential-access,Brute Force,,https://attack.mitre.org/techniques/T1110/
+database event 1,,,,,
+authentication alert 3,T1110,credential-access,Brute Force,,https://attack.mitre.org/techniques/T1110/
+bruteforce alert 3,T1110,credential-access,Brute Force,,https://attack.mitre.org/techniques/T1110/
+web alert 2,T1190,initial-access,Exploit Public-Facing Application,,https://attack.mitre.org/techniques/T1190/
+file_integrity event 3,,,,,
+process event 4,,,,,
+web alert 5,T1190,initial-access,Exploit Public-Facing Application,,https://attack.mitre.org/techniques/T1190/
+malware alert 2,,,,,
+process alert 3,,,,,
+web alert 3,T1190,initial-access,Exploit Public-Facing Application,,https://attack.mitre.org/techniques/T1190/
+database alert 2,,,,,
