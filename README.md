@@ -7,9 +7,10 @@
 
 ---
 
-# Thesis
+## 🧠 Overview
+This repository contains the **full implementation** of a Machine-Learning-Powered Security Operations Centre (SOC) designed for real-time threat detection, alert prioritisation, and analyst personalisation.
 
-This repository contains the thesis frontend (React + Vite) and the SOC ML pipeline.
+Built with open-source technologies — **Wazuh**, **Suricata**, **FastAPI**, **SQLite**, and **React + Vite** — the platform demonstrates how AI models such as Random Forest and Balanced Random Forest can significantly reduce false positives and improve analyst efficiency.
 
 ## 📦 Structure
 - `soc-ml-pipeline/` — data processing, ML training/scoring, configs
