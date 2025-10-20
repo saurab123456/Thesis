@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="DashBoard.jpg" alt="SOC Dashboard" width="900">
+</p>
+
+<h2 align="center">Security Intelligence Platform</h2>
+<p align="center"><em>AI-Driven SOC — Wazuh | Suricata | Machine Learning | FastAPI | React</em></p>
+
+---
+
 # Thesis
 
 This repository contains the thesis frontend (React + Vite) and the SOC ML pipeline.
