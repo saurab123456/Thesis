@@ -347,3 +347,8 @@ Similar steps for `/var/log/suricata/eve.json`
 **Repository**: https://github.com/saurab123456/Thesis  
 **Year**: 2024
 
+### MIT License
+curl -s https://raw.githubusercontent.com/github/choosealicense.com/gh-pages/_licenses/mit.txt \
+  | sed "s/\[year\]/2025/; s/\[fullname\]/Saurab Kharel/" > LICENSE
+git add LICENSE && git commit -m "Add MIT license" && git push
+
