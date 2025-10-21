@@ -18,6 +18,8 @@
 | **Frontend** | React, TypeScript, Vite, Tailwind |
 | **Deployment** | Docker, Kubernetes (optional) |
 
+
+
 ---
 ## 📚 Table of Contents
 - [🧠 Overview](#-overview)
@@ -44,13 +46,13 @@ Built with open-source technologies — **Wazuh**, **Suricata**, **FastAPI**, **
 ---
 
 ## 🚀 Quick Start
-
-### Prerequisites
-- **Python 3.8+**
-- **Node.js 18+** and **npm 9+**
-- **Git**
-- **SQLite3**
-
+### System Requirements
+- **OS**: Linux (Ubuntu 20.04+), macOS, or Windows WSL2
+- **Python**: 3.8-3.11 (test with specific version)
+- **Node.js**: 18.x or 20.x LTS
+- **RAM**: Minimum 8GB (16GB recommended for training)
+- **Disk**: ~20GB free space
+- **SQLite**: 3.31.0+ (usually pre-installed)
 
 ```bash
 # Clone the repository
@@ -278,6 +280,67 @@ Check model performance
 ```sql
 SELECT model_name, accuracy, precision, recall FROM model_metrics;
 ```
+
+### Docker Setup
+
+## 🐳 Docker Deployment (Recommended)
+
+### Quick Start with Docker
+```bash
+# Build and run everything
+docker-compose up -d
+
+# Access dashboard at http://localhost:5173
+# API docs at http://localhost:8000/docs
+```
+
+### Docker Compose
+Create `docker-compose.yml`:
+```yaml
+version: '3.8'
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./datasets:/app/datasets
+    environment:
+      - DB_PATH=/app/datasets/wazuh.db
+  
+  frontend:
+    build: ./src
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+```
+
+### Real Data Integration Guide
+## 📡 Connecting Real Security Tools
+
+### Wazuh Integration
+1. **Export alerts from Wazuh**:
+```bash
+# On Wazuh manager
+/var/ossec/logs/alerts/alerts.json
+```
+
+2. **Transfer to pipeline**:
+```bash
+scp wazuh-server:/var/ossec/logs/alerts/alerts.json ./raw_data/
+```
+
+3. **Ingest**:
+```bash
+python soc-ml-pipeline/scripts/ingest_wazuh_json_to_sqlite.py \
+  --input ./raw_data/alerts.json \
+  --db ./datasets/wazuh.db
+```
+
+### Suricata Integration
+Similar steps for `/var/log/suricata/eve.json`
+
 ### Citation <a id="-citation"></a>
 **Author**: Saurab Kharel 
 **Title**: Machine-Learning-Powered SOC Platform  
