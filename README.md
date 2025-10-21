@@ -7,7 +7,7 @@
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack <a id="️-tech-stack"></a>
 
 | Layer | Technology |
 |-------|------------|
@@ -37,7 +37,7 @@
 
 
 
-## 🧠 Overview
+## 🧠 Overview <a id="-overview"></a>
 This repository contains the **full implementation** of a Machine-Learning-Powered Security Operations Centre (SOC) designed for real-time threat detection, alert prioritisation, and analyst personalisation.
 
 Built with open-source technologies — **Wazuh**, **Suricata**, **FastAPI**, **SQLite**, and **React + Vite** — the platform demonstrates how AI models such as **Random Forest** and **Balanced Random Forest** can significantly reduce false positives and improve analyst efficiency.
@@ -58,7 +58,7 @@ git clone https://github.com/yourusername/Thesis.git
 cd Thesis
 ---
 ```
-## ⚡ One-Command Setup
+## ⚡ One-Command Setup <a id="-one-command-setup"></a>
 ```bash
 git clone https://github.com/saurab123456/Thesis.git
 cd Thesis
@@ -67,7 +67,7 @@ python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 cd src && npm install && npm run dev
 ```
-## ⚙️ System Architecture
+## ⚙️ System Architecture <a id="️-system-architecture"></a>
 ```mermaid
 flowchart LR
 A[Data Sources] --> B[Data Processing] --> C[Machine Learning] --> D[Dashboard & API]
@@ -97,7 +97,7 @@ D3[Role-Based Views]
 end
 ```
   
-### 📦 Structure
+### 📦 Structure <a id="-structure"></a>
 - `soc-ml-pipeline/` — data processing, ML training/scoring, configs  
 - `api/` — FastAPI backend  
 - `src/` — React dashboard (Vite / TypeScript)  
@@ -120,12 +120,12 @@ Thesis/
 └─ .gitignore                # Excludes live DB files, caches, etc.
 
 ```
-## ⚙️ Install & Setuo Requirements
+## ⚙️ Install & Setup Requirements <a id="️-install--setup-requirements"></a>
 Before running the SOC pipeline, install all necessary dependencies for both **machine learning** and **API/backend** components.
 
 ---
 
-### 🧩 1️⃣ Python Environment (ML + Backend)
+### 🧩 1️⃣ Python Environment (ML + Backend) <a id="-python-environment-ml--backend"></a>
 Install required Python libraries for model training, alert scoring, and FastAPI backend.
 
 ```bash
@@ -136,7 +136,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 ```
-### 🖥️ 2️⃣ Node.js Environment (Frontend)
+### 🖥️ 2️⃣ Node.js Environment (Frontend) <a id="️-nodejs-environment-frontend"></a>
 
 Install dependencies for the React + Vite dashboard (**Node v18+**, **npm 9+**):
 
@@ -146,7 +146,7 @@ npm install
 
 ```
 
-###  4️⃣ Database Initialization
+###  4️⃣ Database Initialization <a id="️-database-initialization"></a>
 Initialize SQLite database
 Requires sqlite3 installed.
 
@@ -176,7 +176,7 @@ python soc-ml-pipeline/scripts/ingest_suricata_to_sqlite.py \
   --db ./datasets/wazuh.db
 
 ```
-### 5️⃣ Train Models (RF / BRF)
+### 5️⃣ Model Training & Scoring <a id="-model-training--scoring"></a>
 ```bash
 python soc-ml-pipeline/ml/training/train_rf_model_random_forest.py \
   --db ./datasets/wazuh.db \
@@ -224,7 +224,7 @@ SELECT * FROM model_metrics LIMIT 20;
 SELECT * FROM model_feature_importance ORDER BY importance DESC LIMIT 10;
 ```
 
-### 7️⃣ Start the API (FastAPI)
+### 7️⃣ Run API & Dashboard <a id="-run-api--dashboard"></a>
 ```bash
 cd api
 # If you use uvicorn entrypoint like: main:app
@@ -233,7 +233,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 Open: http://localhost:8000/
 Docs: http://localhost:8000/docs
 
-### 8️⃣ Run the Dashboard (React + Vite)
+### Run the Dashboard (React + Vite)
 ```bash
 cd src
 npm run dev
@@ -245,7 +245,7 @@ Top alert types/severities
 Compare Wazuh vs ML scoring (if implemented)
 Role-based/analyst-aware views
 ```
-### 9️⃣ Configuration
+### 9️⃣ Configuration <a id="️-configuration"></a>
 Create a .env (or .env.local) based on your settings:
 Database
 DB_PATH=./datasets/wazuh.db
@@ -257,7 +257,7 @@ API_PORT=8000
 Frontend
 VITE_API_BASE=http://localhost:8000
 
-### 🔟 Testing
+### 🔟 Testing <a id="-testing"></a>
 Verify Installation
 ```bash
 # Test database
@@ -277,3 +277,10 @@ SELECT * FROM v_alerts_scored LIMIT 10;
 Check model performance
 ```sql
 SELECT model_name, accuracy, precision, recall FROM model_metrics;
+```
+### Citation <a id="-citation"></a>
+**Author**: Saurab Kharel 
+**Title**: Machine-Learning-Powered SOC Platform  
+**Repository**: https://github.com/saurab123456/Thesis  
+**Year**: 2024
+
