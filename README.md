@@ -347,6 +347,7 @@ Similar steps for `/var/log/suricata/eve.json`
 **Repository**: https://github.com/saurab123456/Thesis  
 **Year**: 2024
 
-### MIT License
-This project is licensed under the MIT License — see the LICENSE file for details.
+
+### 📘 License
+This project is licensed under the [MIT License](./LICENSE) — see the LICENSE file for details.
 
