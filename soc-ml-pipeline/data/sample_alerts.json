@@ -1,0 +1,49 @@
+{
+  "alerts": [
+    {
+      "rule_description": "Suspicious login attempt",
+      "srcip": "192.168.1.10",
+      "timestamp": "2025-08-06T08:00:00Z",
+      "agent_name": "agent-1",
+      "proto": "tcp",
+      "user": "admin",
+      "destination_port": 22
+    },
+    {
+      "rule_description": "Multiple failed SSH logins",
+      "srcip": "10.0.0.5",
+      "timestamp": "2025-08-06T08:02:00Z",
+      "agent_name": "agent-2",
+      "proto": "tcp",
+      "user": "root",
+      "destination_port": 22
+    },
+    {
+      "rule_description": "Example rule",
+      "srcip": "192.168.1.1",
+      "timestamp": "2025-08-06T08:05:00Z",
+      "agent_name": "agent-3",
+      "proto": "udp",
+      "user": "guest",
+      "destination_port": 53
+    },
+    {
+      "rule_description": "Port scan detected",
+      "srcip": "203.0.113.7",
+      "timestamp": "2025-08-06T08:07:00Z",
+      "agent_name": "agent-4",
+      "proto": "tcp",
+      "user": "unknown",
+      "destination_port": 80
+    },
+    {
+      "rule_description": "Suspicious login attempt",
+      "srcip": "192.168.1.10",
+      "timestamp": "2025-08-06T08:10:00Z",
+      "agent_name": "agent-1",
+      "proto": "tcp",
+      "user": "admin",
+      "destination_port": 22
+    }
+  ]
+}
