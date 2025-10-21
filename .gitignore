@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+data/*full_dump*.sql
+data/*full_dump*.sql
