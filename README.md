@@ -165,6 +165,22 @@ It allows anyone to recreate the full database schema without including actual d
 Generate sample data for testing
 Ingest Data (Wazuh / Suricata / Synthetic)
 
+### Validate Schema and Table Structure
+
+After creating the database, you can run these sample queries to verify that the schema was initialized correctly and the table structure matches expectations:
+
+### Show schema for the alerts table
+sqlite3 ./datasets/wazuh.db "SELECT sql FROM sqlite_master WHERE name='alerts';"
+
+### View column names and data types for each table
+```
+sqlite3 ./datasets/wazuh.db "PRAGMA table_info(alerts);"
+sqlite3 ./datasets/wazuh.db "PRAGMA table_info(ml_features);"
+sqlite3 ./datasets/wazuh.db "PRAGMA table_info(model_metrics);"
+
+### Check sample logs (if any seed/sample data added)
+sqlite3 ./datasets/wazuh.db "SELECT * FROM alerts LIMIT 5;"
+
 ## Use your ingestion/processing scripts under soc-ml-pipeline/scripts/ (or data/processing/)
 Adjust paths to your raw JSON/NDJSON exports.
 
