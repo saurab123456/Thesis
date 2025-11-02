@@ -153,17 +153,19 @@ Initialize SQLite database
 Requires sqlite3 installed.
 
 ```bash
-
+# Initialise a fresh database from schema
 ./soc-ml-pipeline/data/sql/init_db.sh ./datasets/wazuh.db
 
--- inside sqlite3
-.tables
-SELECT name, sql FROM sqlite_master WHERE type='table';
+# Verify that tables were created successfully
+sqlite3 ./datasets/wazuh.db ".tables"
+
 ```
+💡 This script automatically loads all tables, indexes, views, and triggers from /soc-ml-pipeline/data/sql/.
+It allows anyone to recreate the full database schema without including actual data.
 Generate sample data for testing
 Ingest Data (Wazuh / Suricata / Synthetic)
 
-Use your ingestion/processing scripts under soc-ml-pipeline/scripts/ (or data/processing/)
+## Use your ingestion/processing scripts under soc-ml-pipeline/scripts/ (or data/processing/)
 Adjust paths to your raw JSON/NDJSON exports.
 
 ```bash
