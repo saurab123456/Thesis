@@ -319,6 +319,33 @@ services:
 ### Real Data Integration Guide
 ## 📡 Connecting Real Security Tools
 
+### 🛰️ Install Wazuh Agent (Endpoints) <a id="-install-wazuh-agent"></a>
+
+> The **Wazuh agent** runs on your endpoints (Linux/Windows/macOS) and sends logs and telemetry to the **Wazuh manager**.  
+> Replace `<MANAGER_IP>` below with the actual IP or hostname of your Wazuh manager.  
+> Ensure the manager is reachable on **TCP 1514** (events) and **1515** (enrolment/authd).
+
+---
+
+### 🐧 Ubuntu / Debian (20.04+ / 11+)
+```bash
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | sudo apt-key add -
+echo "deb https://packages.wazuh.com/4.x/apt/ stable main" | \
+  sudo tee /etc/apt/sources.list.d/wazuh.list
+sudo apt update && sudo apt install -y wazuh-agent
+
+# Configure agent to connect to your manager
+sudo sed -i "s#<address>.*</address>#<address><MANAGER_IP></address>#g" /var/ossec/etc/ossec.conf
+sudo sed -i "s#<protocol>.*</protocol>#<protocol>tcp</protocol>#g" /var/ossec/etc/ossec.conf
+
+# Enrol the agent with the manager
+sudo /var/ossec/bin/agent-auth -m <MANAGER_IP> -A $(hostname)
+
+# Enable and verify
+sudo systemctl enable --now wazuh-agent
+sudo /var/ossec/bin/wazuh-control status
+```
+
 ### Wazuh Integration
 1. **Export alerts from Wazuh**:
 ```bash
